@@ -78,7 +78,6 @@ function Apply-FPSOptimizations {
     Start-Sleep 3
     Clear-Host
 }
-
 # Funktion zur Messung der Netzwerkgeschwindigkeit
 function Get-NetworkSpeed {
     $speedtestOutput = speedtest --progress=no --format=json | ConvertFrom-Json
@@ -89,65 +88,95 @@ function Get-NetworkSpeed {
     }
 }
 
+# Variable zum Speichern der Startzeit der Netzwerkoptimierung
+$global:networkOptimizedStartTime = $null
+
+# Funktion zur Anzeige der verbleibenden Zeit
+function Show-RemainingTime {
+    param (
+        [int]$remainingTimeInSeconds
+    )
+    Write-Host "Du musst noch $remainingTimeInSeconds Sekunden warten, bevor du die Optimierung erneut durchführen kannst." -ForegroundColor Yellow
+}
+
 # Funktion zur Netzwerkoptimierung
 function Optimize-Network {
     Clear-Host
     Write-Host "`n$asciiLogo" -ForegroundColor Magenta
     Write-Host "`n🌐 Wende Netzwerk-Optimierungen an..." -ForegroundColor Cyan
 
+    # Überprüfen, ob bereits eine Wartezeit läuft
+    if ($global:networkOptimizedStartTime -ne $null) {
+        $elapsedTime = (New-TimeSpan -Start $global:networkOptimizedStartTime).TotalSeconds
+        $remainingTime = [math]::Max(600 - $elapsedTime, 0)  # 600 Sekunden (10 Minuten)
+        
+        if ($remainingTime -gt 0) {
+            # Verbleibende Zeit anzeigen
+            Show-RemainingTime -remainingTimeInSeconds ([int][math]::Floor($remainingTime))
+            return
+        }
+    }
+
     # Geschwindigkeit vor der Optimierung messen
-	Write-Host "Speedtest wird durchgeführt..." -ForegroundColor Magenta
-	
+    Write-Host "Speedtest wird durchgeführt..." -ForegroundColor Magenta
     $beforeSpeed = Get-NetworkSpeed
     Write-Host "[Vorher] Ping: $($beforeSpeed.Ping) ms, Download: $($beforeSpeed.Download) Mbps, Upload: $($beforeSpeed.Upload) Mbps" -ForegroundColor Red
 
-# Finde den aktiven Netzwerkadapter mit der höchsten Geschwindigkeit
-$interface = Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | Sort-Object -Property LinkSpeed -Descending | Select-Object -First 1
+    # Finde den aktiven Netzwerkadapter mit der höchsten Geschwindigkeit
+    $interface = Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | Sort-Object -Property LinkSpeed -Descending | Select-Object -First 1
 
-if ($interface) {
-    $interfaceIndex = $interface.InterfaceIndex
-    $interfaceGUID = (Get-NetAdapter -InterfaceIndex $interfaceIndex).InterfaceGuid
+    if ($interface) {
+        $interfaceIndex = $interface.InterfaceIndex
+        $interfaceGUID = (Get-NetAdapter -InterfaceIndex $interfaceIndex).InterfaceGuid
 
-    # Setze TcpAckFrequency für den gefundenen Adapter
-    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$interfaceGUID"
-    
-    if (Test-Path $regPath) {
-        Set-ItemProperty -Path $regPath -Name "TcpAckFrequency" -Value 1 -Type DWord -Force
-        Write-Output "✅ Nagle-Algorithmus (TcpAckFrequency) für Interface $interfaceGUID deaktiviert." -ForegroundColor Green
+        # Setze TcpAckFrequency für den gefundenen Adapter
+        $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$interfaceGUID"
+        
+        if (Test-Path $regPath) {
+            Set-ItemProperty -Path $regPath -Name "TcpAckFrequency" -Value 1 -Type DWord -Force
+            Write-Output "✅ Nagle-Algorithmus (TcpAckFrequency) für Interface $interfaceGUID deaktiviert." -ForegroundColor Green
+        } else {
+            Write-Output "⚠ Registrierungspfad nicht gefunden: $regPath"
+        }
     } else {
-        Write-Output "⚠ Registrierungspfad nicht gefunden: $regPath"
+        Write-Output "⚠ Kein aktiver Netzwerkadapter gefunden!"
     }
-} else {
-    Write-Output "⚠ Kein aktiver Netzwerkadapter gefunden!"
-}
 
     # TCP-Autotuning-Level anpassen
-	netsh int tcp set global autotuninglevel=normal > $null 2>&1
-	Write-Host "✅ TCP-Autotuning-Level gesetzt." -ForegroundColor Green
+    netsh int tcp set global autotuninglevel=normal > $null 2>&1
+    Write-Host "✅ TCP-Autotuning-Level gesetzt." -ForegroundColor Green
 
-	# DNS-Cache leeren
-	Clear-DnsClientCache
-	Write-Host "✅ DNS-Cache geleert." -ForegroundColor Green
+    # DNS-Cache leeren
+    Clear-DnsClientCache
+    Write-Host "✅ DNS-Cache geleert." -ForegroundColor Green
 
-	# Optimierungen setzen
-	netsh interface ipv4 set subinterface "Ethernet" mtu=1500 store=persistent > $null 2>&1
-	netsh int ip reset > $null 2>&1
-	New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" -Name "NonBestEffortLimit" -Value 0 -PropertyType DWord -Force | Out-Null
-	Write-Host "✅ Netzwerkoptimierungen angewendet." -ForegroundColor Green
+    # Optimierungen setzen
+    netsh interface ipv4 set subinterface "Ethernet" mtu=1500 store=persistent > $null 2>&1
+    netsh int ip reset > $null 2>&1
+    New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" -Name "NonBestEffortLimit" -Value 0 -PropertyType DWord -Force | Out-Null
+    Write-Host "✅ Netzwerkoptimierungen angewendet." -ForegroundColor Green
+    # Geschwindigkeit nach der Optimierung messen
+    Write-Host "Speedtest wird erneut durchgeführt..." -ForegroundColor Magenta
+    $afterSpeed = Get-NetworkSpeed
+    Write-Host "[Nachher] Ping: $($afterSpeed.Ping) ms, Download: $($afterSpeed.Download) Mbps, Upload: $($afterSpeed.Upload) Mbps" -ForegroundColor Green
+	
+	
+    # Wenn es das erste Mal ist, dass die Netzwerk-Optimierung ausgeführt wird
+    if ($global:networkOptimizedStartTime -eq $null) {
+        # Anzeige der Nachricht, dass der Benutzer warten muss
+        Write-Host "Bitte warte, bevor du den nächsten Speedtest durchführst. (10 Minuten Pause)" -ForegroundColor Yellow
 
-	# Geschwindigkeit nach der Optimierung messen
-	Write-Host "Speedtest wird erneut durchgeführt..." -ForegroundColor Magenta
-	Start-Sleep -Seconds 10  # Pause von 10 Sekunden zwischen den Speedtests
-	$afterSpeed = Get-NetworkSpeed
-	Write-Host "[Nachher] Ping: $($afterSpeed.Ping) ms, Download: $($afterSpeed.Download) Mbps, Upload: $($afterSpeed.Upload) Mbps" -ForegroundColor Green
-	Start-Sleep 3
-	Clear-Host
+        # Setze den Startzeitpunkt der Optimierung
+        $global:networkOptimizedStartTime = (Get-Date)
+    }
 
-
+    
+    Start-Sleep 3
+    Clear-Host
 }
 
 # Funktion zur RAM-Optimierung
-function Optimize-RAM {
+	function Optimize-RAM {
     Clear-Host
     Write-Host "`n$asciiLogo" -ForegroundColor Magenta
     Write-Host "`n🧠 Starte RAM-Optimierung..." -ForegroundColor Cyan
@@ -185,7 +214,7 @@ function Optimize-RAM {
 }
 
 # Funktion zum Aktualisieren von Software mit winget
-function Upgrade-Software {
+	function Upgrade-Software {
     Clear-Host
     Write-Host "`n[+] Aktualisiere installierte Software..." -ForegroundColor Cyan
     try {
@@ -200,7 +229,7 @@ function Upgrade-Software {
 }
 
 # Menü anzeigen
-function Show-Menu {
+	function Show-Menu {
     Clear-Host
     Write-Host "`n$asciiLogo" -ForegroundColor Magenta
     Show-HardwareInfo  # Automatische Anzeige der Hardware-Informationen beim ersten Start
