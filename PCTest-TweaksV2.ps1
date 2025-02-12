@@ -122,25 +122,28 @@ if ($interface) {
 }
 
     # TCP-Autotuning-Level anpassen
-    netsh int tcp set global autotuninglevel=normal > $null 2>&1
-    Write-Host "✅ TCP-Autotuning-Level gesetzt." -ForegroundColor Green
+	netsh int tcp set global autotuninglevel=normal > $null 2>&1
+	Write-Host "✅ TCP-Autotuning-Level gesetzt." -ForegroundColor Green
 
-    # DNS-Cache leeren
-    Clear-DnsClientCache
-    Write-Host "✅ DNS-Cache geleert." -ForegroundColor Green
+	# DNS-Cache leeren
+	Clear-DnsClientCache
+	Write-Host "✅ DNS-Cache geleert." -ForegroundColor Green
 
-    # Optimierungen setzen
-    netsh interface ipv4 set subinterface "Ethernet" mtu=1500 store=persistent > $null 2>&1
-    netsh int ip reset > $null 2>&1
-    New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" -Name "NonBestEffortLimit" -Value 0 -PropertyType DWord -Force | Out-Null
-    Write-Host "✅ Netzwerkoptimierungen angewendet." -ForegroundColor Green
+	# Optimierungen setzen
+	netsh interface ipv4 set subinterface "Ethernet" mtu=1500 store=persistent > $null 2>&1
+	netsh int ip reset > $null 2>&1
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" -Name "NonBestEffortLimit" -Value 0 -PropertyType DWord -Force | Out-Null
+	Write-Host "✅ Netzwerkoptimierungen angewendet." -ForegroundColor Green
 
-    # Geschwindigkeit nach der Optimierung messen
+	# Geschwindigkeit nach der Optimierung messen
 	Write-Host "Speedtest wird erneut durchgeführt..." -ForegroundColor Magenta
-    $afterSpeed = Get-NetworkSpeed
-    Write-Host "[Nachher] Ping: $($afterSpeed.Ping) ms, Download: $($afterSpeed.Download) Mbps, Upload: $($afterSpeed.Upload) Mbps" -ForegroundColor Green
-    Start-Sleep 3
-    Clear-Host
+	Start-Sleep -Seconds 10  # Pause von 10 Sekunden zwischen den Speedtests
+	$afterSpeed = Get-NetworkSpeed
+	Write-Host "[Nachher] Ping: $($afterSpeed.Ping) ms, Download: $($afterSpeed.Download) Mbps, Upload: $($afterSpeed.Upload) Mbps" -ForegroundColor Green
+	Start-Sleep 3
+	Clear-Host
+
+
 }
 
 # Funktion zur RAM-Optimierung
