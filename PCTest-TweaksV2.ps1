@@ -155,9 +155,9 @@ function Optimize-RAM {
     # RAM gezielt freigeben
     if (Test-Path "$env:SystemRoot\System32\EmptyStandbyList.exe") {
         Start-Process -NoNewWindow -Wait -FilePath "$env:SystemRoot\System32\EmptyStandbyList.exe" -ArgumentList "standbylist"
-        Write-Host "`u2705 Standby-List Speicher erfolgreich geleert!" -ForegroundColor Green
+        Write-Host "✅Standby-List Speicher erfolgreich geleert!" -ForegroundColor Green
     } else {
-        Write-Host "`u26A0 'EmptyStandbyList.exe' wurde nicht gefunden!" -ForegroundColor Red
+        Write-Host "⚠ 'EmptyStandbyList.exe' wurde nicht gefunden!" -ForegroundColor Red
     }
 
     # Hintergrundprozesse beenden
@@ -165,19 +165,34 @@ function Optimize-RAM {
     foreach ($proc in $processesToKill) {
         if (Get-Process -Name $proc -ErrorAction SilentlyContinue) {
             Stop-Process -Name $proc -Force
-            Write-Host "`u2705 $proc wurde geschlossen!" -ForegroundColor Green
+            Write-Host "✅ $proc wurde geschlossen!" -ForegroundColor Green
         }
     }
 
     # Speicherverwaltung optimieren
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "DisablePagingExecutive" -Value 1 -Type DWord -Force
-    Write-Host "`u2705 Speicherverwaltung optimiert!" -ForegroundColor Green
+    Write-Host "✅ Speicherverwaltung optimiert!" -ForegroundColor Green
 
     $afterRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1024
     Write-Host "[Nachher] Freier RAM: $afterRAM MB" -ForegroundColor Green
 
     Write-Host "🚀 RAM-Optimierung abgeschlossen!" -ForegroundColor Yellow
     Start-Sleep 5
+    Clear-Host
+}
+
+# Funktion zum Aktualisieren von Software mit winget
+function Upgrade-Software {
+    Clear-Host
+    Write-Host "`n[+] Aktualisiere installierte Software..." -ForegroundColor Cyan
+    try {
+        Write-Host "[+] Starte Upgrade für alle installierten Pakete..." -ForegroundColor Yellow
+        winget upgrade --all 
+    } catch {
+        Write-Host "[✖] Fehler beim Aktualisieren von Software." -ForegroundColor Red
+    }
+    Write-Host "[✔] Software-Upgrade abgeschlossen." -ForegroundColor Green
+    Start-Sleep -Seconds 5
     Clear-Host
 }
 
